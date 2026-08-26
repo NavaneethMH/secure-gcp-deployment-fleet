@@ -1,0 +1,10 @@
+google-adk[a2a]
+google-cloud-aiplatform
+google-cloud-artifact-registry
+google-cloud-run
+google-cloud-logging
+google-cloud-secret-manager
+python-dotenv
+pydantic
+httpx
+PyGithub
