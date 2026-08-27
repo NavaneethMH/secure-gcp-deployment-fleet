@@ -2,6 +2,9 @@ import os
 from typing import Any
 from urllib.parse import quote
 
+import google.auth
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 import httpx
 
 
@@ -24,8 +27,6 @@ class OrchestratorClient:
         timeout_seconds: float | None = None,
         bearer_token: str | None = None,
     ) -> None:
-        # An explicitly supplied empty string must remain empty.
-        # Only fall back to the environment when base_url is None.
         self.base_url = (
             base_url
             if base_url is not None
@@ -65,9 +66,19 @@ class OrchestratorClient:
             "adk",
         ).strip().lower()
 
+        self.use_identity_token = os.getenv(
+            "ORCHESTRATOR_USE_IDENTITY_TOKEN",
+            "false",
+        ).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
     @property
     def configured(self) -> bool:
-        """Return whether a remote/local Orchestrator URL is configured."""
+        """Return whether an Orchestrator URL is configured."""
         return bool(self.base_url)
 
     def _headers(self) -> dict[str, str]:
@@ -75,10 +86,51 @@ class OrchestratorClient:
             "Content-Type": "application/json",
         }
 
+        # Explicit bearer token takes precedence.
         if self.bearer_token:
             headers["Authorization"] = (
                 f"Bearer {self.bearer_token}"
             )
+            return headers
+
+        # Identity-token authentication is opt-in.
+        #
+        # This keeps local unit tests and local development free from
+        # Cloud Run metadata-server dependencies, while production can
+        # explicitly enable Google identity authentication.
+        if (
+            self.execution_mode != "local"
+            and self.use_identity_token
+        ):
+            if not self.base_url:
+                raise OrchestratorClientError(
+                    "ORCHESTRATOR_URL is required for identity authentication."
+                )
+
+            audience = self.base_url
+
+            try:
+                credentials = (
+                    id_token.fetch_id_token_credentials(
+                        audience,
+                        request=Request(),
+                    )
+                )
+                credentials.refresh(Request())
+
+                token = credentials.token
+
+                if not token:
+                    raise RuntimeError(
+                        "Google identity token is empty."
+                    )
+
+            except Exception as exc:
+                raise OrchestratorClientError(
+                    "Failed to obtain Cloud Run identity token."
+                ) from exc
+
+            headers["Authorization"] = f"Bearer {token}"
 
         return headers
 
@@ -218,8 +270,6 @@ class OrchestratorClient:
         Execute a validated deployment request through ADK.
         """
 
-        # Local mode is intentionally deterministic and does not
-        # require a live ADK/Vertex AI endpoint.
         if self.execution_mode == "local":
             return self._execute_local(
                 deployment_request
@@ -302,10 +352,7 @@ class OrchestratorClient:
         async with httpx.AsyncClient(
             timeout=self.timeout_seconds
         ) as client:
-            # --------------------------------------------------------------
             # Create a dedicated ADK session for this GitHub delivery.
-            # --------------------------------------------------------------
-
             session_response = await client.post(
                 session_url,
                 headers=headers,
@@ -321,10 +368,7 @@ class OrchestratorClient:
                     f"HTTP {session_response.status_code}"
                 )
 
-            # --------------------------------------------------------------
             # Execute the Orchestrator.
-            # --------------------------------------------------------------
-
             run_response = await client.post(
                 run_url,
                 headers=headers,
