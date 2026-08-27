@@ -12,10 +12,20 @@ from webhook.orchestrator_bridge import (
     create_deployment_request,
 )
 
+from webhook.orchestrator_execution import (
+    OrchestratorExecutionError,
+    execute_deployment_request_async,
+)
+
+from webhook.orchestrator_client import (
+    OrchestratorClient,
+    OrchestratorClientError,
+)
+
 
 app = FastAPI(
     title="Secure GCP Deployment Fleet Webhook",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 replay_protection = ReplayProtection()
@@ -26,6 +36,9 @@ def health():
     return {
         "status": "healthy",
         "service": "secure-gcp-deployment-fleet-webhook",
+        "orchestrator_configured": bool(
+            os.getenv("ORCHESTRATOR_URL")
+        ),
     }
 
 
@@ -51,7 +64,7 @@ async def github_webhook(
         )
 
     try:
-        result = create_deployment_request(
+        deployment_request = create_deployment_request(
             payload_bytes=payload,
             signature=x_hub_signature_256,
             event_name=x_github_event,
@@ -79,4 +92,37 @@ async def github_webhook(
             detail=str(exc),
         ) from exc
 
-    return result
+    # ------------------------------------------------------------------
+    # Phase 8E
+    #
+    # The webhook creates the deployment request first.
+    # Only an accepted request can reach the Orchestrator.
+    # ------------------------------------------------------------------
+
+    if not os.getenv("ORCHESTRATOR_URL"):
+        return deployment_request
+
+    client = OrchestratorClient()
+
+    try:
+        execution_result = await execute_deployment_request_async(
+            deployment_request,
+            client.execute,
+        )
+
+    except OrchestratorExecutionError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except OrchestratorClientError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        **deployment_request,
+        "execution": execution_result,
+    }
