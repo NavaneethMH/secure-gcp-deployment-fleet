@@ -24,14 +24,18 @@ class OrchestratorClient:
         timeout_seconds: float | None = None,
         bearer_token: str | None = None,
     ) -> None:
+        # An explicitly supplied empty string must remain empty.
+        # Only fall back to the environment when base_url is None.
         self.base_url = (
             base_url
-            or os.getenv("ORCHESTRATOR_URL", "")
+            if base_url is not None
+            else os.getenv("ORCHESTRATOR_URL", "")
         ).rstrip("/")
 
         self.app_name = (
             app_name
-            or os.getenv(
+            if app_name is not None
+            else os.getenv(
                 "ORCHESTRATOR_APP_NAME",
                 "orchestrator",
             )
@@ -56,8 +60,14 @@ class OrchestratorClient:
             else os.getenv("ORCHESTRATOR_BEARER_TOKEN")
         )
 
+        self.execution_mode = os.getenv(
+            "ORCHESTRATOR_EXECUTION_MODE",
+            "adk",
+        ).strip().lower()
+
     @property
     def configured(self) -> bool:
+        """Return whether a remote/local Orchestrator URL is configured."""
         return bool(self.base_url)
 
     def _headers(self) -> dict[str, str]:
@@ -132,6 +142,74 @@ class OrchestratorClient:
             "Never directly execute infrastructure tools."
         )
 
+    def _execute_local(
+        self,
+        deployment_request: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Deterministic local execution path for end-to-end testing.
+
+        This path validates the deployment request shape but does not
+        contact Gemini, Vertex AI, or execute infrastructure tools.
+        """
+
+        required_fields = (
+            "event_id",
+            "repository",
+            "branch",
+            "commit_sha",
+        )
+
+        missing = [
+            field
+            for field in required_fields
+            if not deployment_request.get(field)
+        ]
+
+        if missing:
+            raise OrchestratorClientError(
+                "Missing deployment request fields: "
+                + ", ".join(missing)
+            )
+
+        event_id = str(
+            deployment_request["event_id"]
+        )
+
+        repository = str(
+            deployment_request["repository"]
+        )
+
+        branch = str(
+            deployment_request["branch"]
+        )
+
+        commit_sha = str(
+            deployment_request["commit_sha"]
+        )
+
+        repository_owner = str(
+            deployment_request.get(
+                "repository_owner",
+                "github",
+            )
+        )
+
+        return {
+            "status": "completed",
+            "execution_mode": "local",
+            "event_id": event_id,
+            "repository": repository,
+            "repository_owner": repository_owner,
+            "branch": branch,
+            "commit_sha": commit_sha,
+            "session_id": (
+                "deployment-" + event_id
+            ),
+            "app_name": self.app_name,
+            "events_received": 1,
+        }
+
     async def execute(
         self,
         deployment_request: dict[str, Any],
@@ -139,6 +217,13 @@ class OrchestratorClient:
         """
         Execute a validated deployment request through ADK.
         """
+
+        # Local mode is intentionally deterministic and does not
+        # require a live ADK/Vertex AI endpoint.
+        if self.execution_mode == "local":
+            return self._execute_local(
+                deployment_request
+            )
 
         self._validate_configuration()
 
@@ -217,7 +302,6 @@ class OrchestratorClient:
         async with httpx.AsyncClient(
             timeout=self.timeout_seconds
         ) as client:
-
             # --------------------------------------------------------------
             # Create a dedicated ADK session for this GitHub delivery.
             # --------------------------------------------------------------
