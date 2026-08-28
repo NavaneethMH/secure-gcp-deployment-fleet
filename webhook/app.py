@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -23,12 +25,63 @@ from webhook.orchestrator_client import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 app = FastAPI(
     title="Secure GCP Deployment Fleet Webhook",
-    version="1.1.0",
+    version="1.2.0",
 )
 
+
 replay_protection = ReplayProtection()
+
+
+async def _run_deployment(
+    deployment_request: dict,
+) -> None:
+    """
+    Execute the validated deployment request asynchronously.
+
+    The webhook response is returned immediately after validation.
+    """
+
+    try:
+        client = OrchestratorClient()
+
+        result = await execute_deployment_request_async(
+            deployment_request,
+            client.execute,
+        )
+
+        logger.info(
+            "Asynchronous deployment completed: "
+            "event_id=%s status=%s session_id=%s",
+            deployment_request.get("event_id"),
+            result.get("status")
+            if isinstance(result, dict)
+            else None,
+            result.get("session_id")
+            if isinstance(result, dict)
+            else None,
+        )
+
+    except (
+        OrchestratorExecutionError,
+        OrchestratorClientError,
+    ):
+        logger.exception(
+            "Asynchronous deployment execution failed: "
+            "event_id=%s",
+            deployment_request.get("event_id"),
+        )
+
+    except Exception:
+        logger.exception(
+            "Unexpected asynchronous deployment failure: "
+            "event_id=%s",
+            deployment_request.get("event_id"),
+        )
 
 
 @app.get("/health")
@@ -92,37 +145,25 @@ async def github_webhook(
             detail=str(exc),
         ) from exc
 
-    # ------------------------------------------------------------------
-    # Phase 8E
+    # ---------------------------------------------------------------
+    # The webhook has now passed:
+    #   1. Header validation
+    #   2. Signature validation
+    #   3. Replay protection
+    #   4. Deployment request validation
     #
-    # The webhook creates the deployment request first.
-    # Only an accepted request can reach the Orchestrator.
-    # ------------------------------------------------------------------
+    # Do not wait for the Orchestrator here.
+    # ---------------------------------------------------------------
 
-    if not os.getenv("ORCHESTRATOR_URL"):
-        return deployment_request
-
-    client = OrchestratorClient()
-
-    try:
-        execution_result = await execute_deployment_request_async(
-            deployment_request,
-            client.execute,
+    if os.getenv("ORCHESTRATOR_URL"):
+        asyncio.create_task(
+            _run_deployment(
+                deployment_request
+            )
         )
 
-    except OrchestratorExecutionError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        ) from exc
-
-    except OrchestratorClientError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=str(exc),
-        ) from exc
-
-    return {
-        **deployment_request,
-        "execution": execution_result,
-    }
+    # Preserve the existing webhook API contract.
+    #
+    # The asynchronous execution change must not unnecessarily alter
+    # the existing successful response expected by the application/tests.
+    return deployment_request

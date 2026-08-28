@@ -1,8 +1,7 @@
 import os
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
-import google.auth
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 import httpx
@@ -18,6 +17,12 @@ class OrchestratorClient:
 
     This client does not have access to infrastructure tools.
     It only submits an approved deployment request to the Orchestrator.
+
+    Authentication behavior:
+    - Explicit bearer token takes precedence.
+    - Localhost / loopback URLs do not require Google identity authentication.
+    - Deployed environments can explicitly enable Cloud Run identity tokens
+      using ORCHESTRATOR_USE_IDENTITY_TOKEN=true.
     """
 
     def __init__(
@@ -61,6 +66,12 @@ class OrchestratorClient:
             else os.getenv("ORCHESTRATOR_BEARER_TOKEN")
         )
 
+        # Keep the configured execution mode unchanged.
+        #
+        # IMPORTANT:
+        # A localhost URL does NOT mean that the ADK HTTP execution path
+        # should be skipped. The local tests intentionally exercise the
+        # same HTTP session/run flow using a mocked httpx client.
         self.execution_mode = os.getenv(
             "ORCHESTRATOR_EXECUTION_MODE",
             "adk",
@@ -74,6 +85,32 @@ class OrchestratorClient:
             "true",
             "yes",
             "on",
+        }
+
+    @staticmethod
+    def _is_local_url(base_url: str) -> bool:
+        """
+        Return True when the configured Orchestrator URL points to a
+        local loopback address.
+
+        Local URLs should not attempt Google Cloud identity authentication,
+        but they must still be allowed to use the normal ADK HTTP execution
+        flow.
+        """
+        if not base_url:
+            return False
+
+        try:
+            parsed = urlparse(base_url)
+        except ValueError:
+            return False
+
+        hostname = (parsed.hostname or "").strip().lower()
+
+        return hostname in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
         }
 
     @property
@@ -93,15 +130,14 @@ class OrchestratorClient:
             )
             return headers
 
-        # Identity-token authentication is opt-in.
-        #
-        # This keeps local unit tests and local development free from
-        # Cloud Run metadata-server dependencies, while production can
-        # explicitly enable Google identity authentication.
-        if (
-            self.execution_mode != "local"
-            and self.use_identity_token
-        ):
+        # Never attempt Google identity authentication for local loopback
+        # endpoints. This prevents local tests and local development from
+        # contacting the Google metadata server.
+        if self._is_local_url(self.base_url):
+            return headers
+
+        # Identity-token authentication is opt-in for deployed execution.
+        if self.use_identity_token:
             if not self.base_url:
                 raise OrchestratorClientError(
                     "ORCHESTRATOR_URL is required for identity authentication."
@@ -116,6 +152,7 @@ class OrchestratorClient:
                         request=Request(),
                     )
                 )
+
                 credentials.refresh(Request())
 
                 token = credentials.token

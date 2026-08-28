@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PORT=8080
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
+
+COPY audit ./audit
+COPY config ./config
+COPY gateway ./gateway
+COPY memory ./memory
+COPY observability ./observability
+COPY security ./security
+COPY tools ./tools
+COPY webhook ./webhook
+
+EXPOSE 8080
+
+CMD ["sh", "-c", "uvicorn webhook.app:app --host 0.0.0.0 --port ${PORT}"]

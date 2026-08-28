@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from google.cloud import run_v2
 from google.api_core import exceptions
 
@@ -14,8 +16,14 @@ def deploy_cloud_run_service(
     max_instances: int = 10,
     public: bool = True,
 ) -> str:
+    """
+    Deploy an immutable Artifact Registry image to Cloud Run.
 
-    # Security: only allow images from our configured Artifact Registry.
+    This tool only performs Cloud Run deployment/update operations.
+    """
+
+    # Security: only allow images from the approved
+    # Artifact Registry project and region.
     expected_prefix = (
         f"{region}-docker.pkg.dev/{project_id}/"
     )
@@ -26,7 +34,7 @@ def deploy_cloud_run_service(
             "Artifact Registry project/region."
         )
 
-    # Security: only immutable digests are accepted.
+    # Security: only immutable image digests are accepted.
     if "@sha256:" not in image_uri:
         return (
             "ERROR: Mutable image tags are not allowed. "
@@ -44,6 +52,18 @@ def deploy_cloud_run_service(
 
     if min_instances > max_instances:
         return "ERROR: min_instances cannot exceed max_instances."
+
+    if not project_id:
+        return "ERROR: project_id is required."
+
+    if not region:
+        return "ERROR: region is required."
+
+    if not service_name:
+        return "ERROR: service_name is required."
+
+    if not image_uri:
+        return "ERROR: image_uri is required."
 
     client = run_v2.ServicesClient()
 
@@ -73,14 +93,14 @@ def deploy_cloud_run_service(
     )
 
     try:
-        # Check whether the service already exists.
+        # ---------------------------------------------------------
+        # Existing service: UPDATE
+        # ---------------------------------------------------------
         try:
             existing = client.get_service(
                 name=service_name_path
             )
 
-            # Preserve the existing service object and modify
-            # only the deployment-related fields.
             existing.template = template
 
             existing.scaling = run_v2.ServiceScaling(
@@ -112,8 +132,14 @@ def deploy_cloud_run_service(
 
         except exceptions.NotFound:
 
+            # -----------------------------------------------------
+            # New service: CREATE
+            #
+            # IMPORTANT:
+            # service.name MUST be empty here.
+            # CreateServiceRequest.service_id supplies the name.
+            # -----------------------------------------------------
             service = run_v2.Service(
-                name=service_name_path,
                 template=template,
                 scaling=run_v2.ServiceScaling(
                     min_instance_count=min_instances,
@@ -154,6 +180,8 @@ def deploy_cloud_run_service(
             f"Exception: {type(exc).__name__}\n"
             f"Message: {exc}"
         )
+
+
 def get_cloud_run_service(
     project_id: str,
     region: str,
@@ -186,6 +214,12 @@ def get_cloud_run_service(
             service.latest_created_revision
         )
 
+        terminal_state = (
+            service.terminal_condition.state
+            if service.terminal_condition
+            else "UNKNOWN"
+        )
+
         return (
             "SUCCESS: Cloud Run service verified.\n"
             f"Service: {service_name}\n"
@@ -198,7 +232,7 @@ def get_cloud_run_service(
             f"URL: "
             f"{urls[0] if urls else 'N/A'}\n"
             f"Reconciling: "
-            f"{service.terminal_condition.state if service.terminal_condition else 'UNKNOWN'}"
+            f"{terminal_state}"
         )
 
     except Exception as exc:

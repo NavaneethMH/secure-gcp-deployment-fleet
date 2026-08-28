@@ -1,10 +1,17 @@
-from gateway.gateway import register_tool
+from gateway.gateway import (
+    freeze_tool_registry,
+    register_tool,
+)
+
 from gateway.policy import Operation
 
+
 from tools.docker_tools import (
+    generate_dockerfile,
     docker_build,
     docker_inspect,
 )
+
 
 from tools.artifact_registry_tools import (
     validate_local_image,
@@ -13,11 +20,21 @@ from tools.artifact_registry_tools import (
     verify_artifact_digest,
 )
 
+
 from tools.cloud_run_tools import (
     deploy_cloud_run_service,
     get_cloud_run_service,
 )
 
+
+# ---------------------------------------------------------------------------
+# BUILD AGENT
+# ---------------------------------------------------------------------------
+
+register_tool(
+    Operation.DOCKERFILE_GENERATE,
+    generate_dockerfile,
+)
 
 register_tool(
     Operation.DOCKER_BUILD,
@@ -28,6 +45,11 @@ register_tool(
     Operation.DOCKER_INSPECT,
     docker_inspect,
 )
+
+
+# ---------------------------------------------------------------------------
+# REGISTRY AGENT
+# ---------------------------------------------------------------------------
 
 register_tool(
     Operation.REGISTRY_VALIDATE,
@@ -49,6 +71,11 @@ register_tool(
     verify_artifact_digest,
 )
 
+
+# ---------------------------------------------------------------------------
+# HOSTING AGENT
+# ---------------------------------------------------------------------------
+
 register_tool(
     Operation.CLOUD_RUN_DEPLOY,
     deploy_cloud_run_service,
@@ -58,3 +85,14 @@ register_tool(
     Operation.CLOUD_RUN_GET,
     get_cloud_run_service,
 )
+
+
+# ---------------------------------------------------------------------------
+# SECURITY BOUNDARY
+# ---------------------------------------------------------------------------
+#
+# All approved tools are registered exactly once.
+# Runtime tool registration/replacement is not permitted.
+#
+
+freeze_tool_registry()

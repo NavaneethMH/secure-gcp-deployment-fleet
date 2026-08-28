@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Callable
+from types import MappingProxyType
+from typing import Any, Callable, Mapping
 
-from audit.audit_logger import (
-    write_audit_event,
-)
-
+from audit.audit_logger import write_audit_event
 from gateway.policy import (
     AgentRole,
     Operation,
@@ -14,18 +12,79 @@ from gateway.policy import (
 )
 
 
-TOOL_REGISTRY: dict[
+_TOOL_REGISTRY: dict[
     Operation,
     Callable[..., Any],
 ] = {}
+
+TOOL_REGISTRY: Mapping[
+    Operation,
+    Callable[..., Any],
+] = MappingProxyType(
+    _TOOL_REGISTRY
+)
+
+_TOOL_REGISTRY_FROZEN = False
 
 
 def register_tool(
     operation: Operation,
     tool: Callable[..., Any],
 ) -> None:
+    """
+    Register one approved implementation during gateway bootstrap only.
 
-    TOOL_REGISTRY[operation] = tool
+    Tool registration is intentionally one-way:
+    - operation must be a valid Operation enum
+    - implementation must be callable
+    - an existing operation cannot be replaced
+    - registration is rejected after the registry is frozen
+    """
+
+    if _TOOL_REGISTRY_FROZEN:
+        raise RuntimeError(
+            "Tool registry is frozen; runtime tool registration is not allowed."
+        )
+
+    if not isinstance(operation, Operation):
+        raise TypeError(
+            "operation must be an Operation enum value."
+        )
+
+    if not callable(tool):
+        raise TypeError(
+            "tool must be callable."
+        )
+
+    if operation in _TOOL_REGISTRY:
+        raise RuntimeError(
+            f"Tool already registered for operation: "
+            f"{operation.value}"
+        )
+
+    _TOOL_REGISTRY[operation] = tool
+
+
+def freeze_tool_registry() -> None:
+    """
+    Freeze the gateway registry after bootstrap registration.
+
+    After this point:
+    - register_tool() cannot add or replace tools
+    - TOOL_REGISTRY cannot be mutated directly
+    """
+
+    global TOOL_REGISTRY
+    global _TOOL_REGISTRY_FROZEN
+
+    if _TOOL_REGISTRY_FROZEN:
+        return
+
+    TOOL_REGISTRY = MappingProxyType(
+        dict(_TOOL_REGISTRY)
+    )
+
+    _TOOL_REGISTRY_FROZEN = True
 
 
 def _resource_from_kwargs(
@@ -62,6 +121,58 @@ def gateway_execute(
         kwargs
     )
 
+    # ---------------------------------------------------------------
+    # Strict agent identity validation
+    # ---------------------------------------------------------------
+
+    if not isinstance(agent, AgentRole):
+
+        reason = "Invalid agent identity."
+
+        write_audit_event(
+            agent=str(agent),
+            operation=(
+                operation.value
+                if isinstance(operation, Operation)
+                else str(operation)
+            ),
+            decision="DENY",
+            reason=reason,
+            status="BLOCKED",
+            request_id=request_id,
+            resource=resource,
+        )
+
+        raise PermissionError(
+            reason
+        )
+
+    # ---------------------------------------------------------------
+    # Strict operation identity validation
+    # ---------------------------------------------------------------
+
+    if not isinstance(operation, Operation):
+
+        reason = "Invalid operation identity."
+
+        write_audit_event(
+            agent=agent.value,
+            operation=str(operation),
+            decision="DENY",
+            reason=reason,
+            status="BLOCKED",
+            request_id=request_id,
+            resource=resource,
+        )
+
+        raise PermissionError(
+            reason
+        )
+
+    # ---------------------------------------------------------------
+    # Policy authorization
+    # ---------------------------------------------------------------
+
     decision = authorize(
         agent,
         operation,
@@ -84,6 +195,10 @@ def gateway_execute(
             f"{operation.value}: "
             f"{decision.reason}"
         )
+
+    # ---------------------------------------------------------------
+    # Approved tool lookup
+    # ---------------------------------------------------------------
 
     tool = TOOL_REGISTRY.get(
         operation
@@ -109,6 +224,10 @@ def gateway_execute(
         raise PermissionError(
             reason
         )
+
+    # ---------------------------------------------------------------
+    # Authorized execution
+    # ---------------------------------------------------------------
 
     write_audit_event(
         agent=agent.value,

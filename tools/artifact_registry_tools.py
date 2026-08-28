@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -33,7 +34,11 @@ def _run_command(
     cwd: Path | None = None,
     timeout: int = 300,
 ) -> str:
-    """Run a controlled subprocess and return bounded output."""
+    """
+    Run a controlled subprocess and return bounded output.
+
+    The command list is constructed only by trusted tool functions.
+    """
 
     try:
         result = subprocess.run(
@@ -44,11 +49,13 @@ def _run_command(
             timeout=timeout,
             check=False,
         )
+
     except FileNotFoundError:
         return (
-            f"ERROR: Required executable was not found: "
+            "ERROR: Required executable was not found: "
             f"{command[0]}"
         )
+
     except subprocess.TimeoutExpired:
         return (
             f"ERROR: Command timed out after {timeout} seconds."
@@ -70,7 +77,40 @@ def _run_command(
     return output or "Command completed successfully."
 
 
-def validate_local_image(image_name: str) -> str:
+def _resolve_docker() -> str:
+    """
+    Resolve the Docker CLI executable.
+
+    Supports Windows environments where Docker may resolve
+    through docker.exe.
+    """
+
+    docker = shutil.which("docker")
+
+    if not docker:
+        docker = shutil.which("docker.exe")
+
+    return docker or ""
+
+
+def _resolve_gcloud() -> str:
+    """
+    Resolve the Google Cloud CLI executable.
+
+    On Windows, gcloud is commonly exposed through gcloud.cmd.
+    """
+
+    gcloud = shutil.which("gcloud")
+
+    if not gcloud:
+        gcloud = shutil.which("gcloud.cmd")
+
+    return gcloud or ""
+
+
+def validate_local_image(
+    image_name: str,
+) -> str:
     """
     Verify that a local Docker image exists.
 
@@ -83,9 +123,17 @@ def validate_local_image(image_name: str) -> str:
             "for example 'secure-fleet-test:v2'."
         )
 
+    docker = _resolve_docker()
+
+    if not docker:
+        return (
+            "ERROR: Docker CLI could not be resolved from PATH. "
+            "Expected docker or docker.exe."
+        )
+
     return _run_command(
         [
-            "docker",
+            docker,
             "image",
             "inspect",
             image_name,
@@ -118,13 +166,23 @@ def tag_image_for_artifact_registry(
         return "ERROR: Invalid Google Cloud project ID."
 
     if not REPOSITORY_PATTERN.fullmatch(repository):
-        return "ERROR: Invalid Artifact Registry repository name."
+        return (
+            "ERROR: Invalid Artifact Registry repository name."
+        )
 
     if not IMAGE_NAME_PATTERN.fullmatch(image_name):
         return "ERROR: Invalid container image name."
 
     if not TAG_PATTERN.fullmatch(tag):
         return "ERROR: Invalid image tag."
+
+    docker = _resolve_docker()
+
+    if not docker:
+        return (
+            "ERROR: Docker CLI could not be resolved from PATH. "
+            "Expected docker or docker.exe."
+        )
 
     registry_image = (
         f"{region}-docker.pkg.dev/"
@@ -135,7 +193,7 @@ def tag_image_for_artifact_registry(
 
     result = _run_command(
         [
-            "docker",
+            docker,
             "tag",
             local_image,
             registry_image,
@@ -147,7 +205,7 @@ def tag_image_for_artifact_registry(
         return result
 
     return (
-        f"SUCCESS: Image tagged for Artifact Registry.\n"
+        "SUCCESS: Image tagged for Artifact Registry.\n"
         f"Local image: {local_image}\n"
         f"Registry image: {registry_image}"
     )
@@ -170,13 +228,23 @@ def push_image_to_artifact_registry(
         return "ERROR: Invalid Google Cloud project ID."
 
     if not REPOSITORY_PATTERN.fullmatch(repository):
-        return "ERROR: Invalid Artifact Registry repository name."
+        return (
+            "ERROR: Invalid Artifact Registry repository name."
+        )
 
     if not IMAGE_NAME_PATTERN.fullmatch(image_name):
         return "ERROR: Invalid container image name."
 
     if not TAG_PATTERN.fullmatch(tag):
         return "ERROR: Invalid image tag."
+
+    docker = _resolve_docker()
+
+    if not docker:
+        return (
+            "ERROR: Docker CLI could not be resolved from PATH. "
+            "Expected docker or docker.exe."
+        )
 
     registry_image = (
         f"{region}-docker.pkg.dev/"
@@ -187,7 +255,7 @@ def push_image_to_artifact_registry(
 
     return _run_command(
         [
-            "docker",
+            docker,
             "push",
             registry_image,
         ],
@@ -205,7 +273,7 @@ def verify_artifact_digest(
     """
     Retrieve the published image digest from Artifact Registry.
 
-    This uses gcloud to inspect the published artifact.
+    This uses the Google Cloud CLI to inspect the published artifact.
 
     It does not modify the repository.
     """
@@ -214,7 +282,9 @@ def verify_artifact_digest(
         return "ERROR: Invalid Google Cloud project ID."
 
     if not REPOSITORY_PATTERN.fullmatch(repository):
-        return "ERROR: Invalid Artifact Registry repository name."
+        return (
+            "ERROR: Invalid Artifact Registry repository name."
+        )
 
     if not IMAGE_NAME_PATTERN.fullmatch(image_name):
         return "ERROR: Invalid container image name."
@@ -222,20 +292,30 @@ def verify_artifact_digest(
     if not TAG_PATTERN.fullmatch(tag):
         return "ERROR: Invalid image tag."
 
+    gcloud = _resolve_gcloud()
+
+    if not gcloud:
+        return (
+            "ERROR: Google Cloud CLI could not be resolved from PATH. "
+            "Expected gcloud or gcloud.cmd."
+        )
+
+    registry_image = (
+        f"{region}-docker.pkg.dev/"
+        f"{project_id}/"
+        f"{repository}/"
+        f"{image_name}:{tag}"
+    )
+
     return _run_command(
         [
-            "gcloud",
+            gcloud,
             "artifacts",
             "docker",
             "images",
             "describe",
-            (
-                f"{region}-docker.pkg.dev/"
-                f"{project_id}/"
-                f"{repository}/"
-                f"{image_name}:{tag}"
-            ),
-            f"--format=value(image_summary.digest)",
+            registry_image,
+            "--format=value(image_summary.digest)",
         ],
         timeout=120,
     )

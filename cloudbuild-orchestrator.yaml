@@ -1,0 +1,12 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.orchestrator
+      - -t
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/secure-fleet/secure-fleet-orchestrator:$BUILD_ID
+      - .
+
+images:
+  - asia-south1-docker.pkg.dev/$PROJECT_ID/secure-fleet/secure-fleet-orchestrator:$BUILD_ID
