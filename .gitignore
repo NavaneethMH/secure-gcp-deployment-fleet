@@ -39,3 +39,5 @@ audit/logs.jsonl
 
 # Runtime Memory Bank
 memory/memory.db
+# Local ADK runtime state
+orchestrator/.adk/
