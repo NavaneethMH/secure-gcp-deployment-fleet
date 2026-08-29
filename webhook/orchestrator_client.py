@@ -23,6 +23,12 @@ class OrchestratorClient:
     - Localhost / loopback URLs do not require Google identity authentication.
     - Deployed environments can explicitly enable Cloud Run identity tokens
       using ORCHESTRATOR_USE_IDENTITY_TOKEN=true.
+
+    Session behavior:
+    - A deterministic session ID is derived from the GitHub delivery ID.
+    - Existing sessions are reused safely.
+    - A completed existing session is not executed again.
+    - An existing empty session is reused for execution.
     """
 
     def __init__(
@@ -66,12 +72,6 @@ class OrchestratorClient:
             else os.getenv("ORCHESTRATOR_BEARER_TOKEN")
         )
 
-        # Keep the configured execution mode unchanged.
-        #
-        # IMPORTANT:
-        # A localhost URL does NOT mean that the ADK HTTP execution path
-        # should be skipped. The local tests intentionally exercise the
-        # same HTTP session/run flow using a mocked httpx client.
         self.execution_mode = os.getenv(
             "ORCHESTRATOR_EXECUTION_MODE",
             "adk",
@@ -90,12 +90,8 @@ class OrchestratorClient:
     @staticmethod
     def _is_local_url(base_url: str) -> bool:
         """
-        Return True when the configured Orchestrator URL points to a
-        local loopback address.
-
-        Local URLs should not attempt Google Cloud identity authentication,
-        but they must still be allowed to use the normal ADK HTTP execution
-        flow.
+        Return True when the configured Orchestrator URL points to
+        a local loopback address.
         """
         if not base_url:
             return False
@@ -130,13 +126,11 @@ class OrchestratorClient:
             )
             return headers
 
-        # Never attempt Google identity authentication for local loopback
-        # endpoints. This prevents local tests and local development from
-        # contacting the Google metadata server.
+        # Local execution must not contact Google's metadata service.
         if self._is_local_url(self.base_url):
             return headers
 
-        # Identity-token authentication is opt-in for deployed execution.
+        # Identity-token authentication is opt-in.
         if self.use_identity_token:
             if not self.base_url:
                 raise OrchestratorClientError(
@@ -299,12 +293,128 @@ class OrchestratorClient:
             "events_received": 1,
         }
 
+    @staticmethod
+    def _session_has_events(
+        session_data: Any,
+    ) -> bool:
+        """
+        Determine whether an existing ADK session has already been used.
+
+        ADK session responses contain an `events` collection when events
+        have been recorded for that session.
+        """
+
+        if not isinstance(session_data, dict):
+            return False
+
+        events = session_data.get("events")
+
+        return isinstance(events, list) and bool(events)
+
+    @staticmethod
+    def _response_detail(
+        response: Any,
+    ) -> str:
+        """
+        Safely extract a `detail` field from an HTTP response.
+
+        Some test doubles may not implement `.json()`. Failure handling
+        must therefore never raise an unrelated AttributeError while
+        trying to report the original HTTP failure.
+        """
+
+        json_method = getattr(
+            response,
+            "json",
+            None,
+        )
+
+        if not callable(json_method):
+            return ""
+
+        try:
+            response_json = json_method()
+        except Exception:
+            return ""
+
+        if not isinstance(response_json, dict):
+            return ""
+
+        detail = response_json.get("detail")
+
+        if detail is None:
+            return ""
+
+        return str(detail)
+
+    async def _get_existing_session(
+        self,
+        client: httpx.AsyncClient,
+        session_url: str,
+        headers: dict[str, str],
+    ) -> dict[str, Any]:
+        """
+        Retrieve an existing ADK session after a 409 conflict.
+
+        A 409 during creation means the deterministic session already
+        exists. We inspect it to distinguish an already-completed
+        deployment from an empty session that still needs execution.
+        """
+
+        response = await client.get(
+            session_url,
+            headers=headers,
+        )
+
+        if response.status_code != 200:
+            detail = self._response_detail(
+                response
+            )
+
+            raise OrchestratorClientError(
+                "Failed to retrieve existing Orchestrator session: "
+                f"HTTP {response.status_code}"
+                + (
+                    f" - {detail}"
+                    if detail
+                    else ""
+                )
+            )
+
+        json_method = getattr(
+            response,
+            "json",
+            None,
+        )
+
+        if not callable(json_method):
+            raise OrchestratorClientError(
+                "Orchestrator returned invalid JSON for existing session."
+            )
+
+        try:
+            session_data = json_method()
+        except Exception as exc:
+            raise OrchestratorClientError(
+                "Orchestrator returned invalid JSON for existing session."
+            ) from exc
+
+        if not isinstance(session_data, dict):
+            raise OrchestratorClientError(
+                "Orchestrator returned an invalid session object."
+            )
+
+        return session_data
+
     async def execute(
         self,
         deployment_request: dict[str, Any],
     ) -> dict[str, Any]:
         """
         Execute a validated deployment request through ADK.
+
+        Session creation is idempotent with respect to the GitHub
+        delivery ID.
         """
 
         if self.execution_mode == "local":
@@ -389,23 +499,78 @@ class OrchestratorClient:
         async with httpx.AsyncClient(
             timeout=self.timeout_seconds
         ) as client:
-            # Create a dedicated ADK session for this GitHub delivery.
+
+            # -------------------------------------------------------
+            # Create the deterministic session.
+            # -------------------------------------------------------
             session_response = await client.post(
                 session_url,
                 headers=headers,
                 json={},
             )
 
-            if session_response.status_code not in (
+            if session_response.status_code in (
                 200,
                 201,
             ):
+                # Newly created session.
+                pass
+
+            elif session_response.status_code == 409:
+                # ---------------------------------------------------
+                # The deterministic session already exists.
+                #
+                # Inspect it before deciding whether to execute.
+                # ---------------------------------------------------
+                session_data = await self._get_existing_session(
+                    client,
+                    session_url,
+                    headers,
+                )
+
+                if self._session_has_events(
+                    session_data
+                ):
+                    return {
+                        "status": "already_completed",
+                        "event_id": event_id,
+                        "session_id": session_id,
+                        "app_name": self.app_name,
+                        "events_received": len(
+                            session_data.get(
+                                "events",
+                                [],
+                            )
+                        ),
+                    }
+
+                # Existing session is empty.
+                # It is safe to reuse it for execution.
+
+            else:
+                detail = self._response_detail(
+                    session_response
+                )
+
                 raise OrchestratorClientError(
                     "Failed to create Orchestrator session: "
                     f"HTTP {session_response.status_code}"
+                    + (
+                        f" - {detail}"
+                        if detail
+                        else ""
+                    )
                 )
 
+            # -------------------------------------------------------
             # Execute the Orchestrator.
+            #
+            # This happens for:
+            #   - newly created sessions
+            #   - existing but empty sessions
+            #
+            # It does NOT happen for completed sessions.
+            # -------------------------------------------------------
             run_response = await client.post(
                 run_url,
                 headers=headers,
@@ -425,14 +590,34 @@ class OrchestratorClient:
             )
 
             if run_response.status_code != 200:
+                detail = self._response_detail(
+                    run_response
+                )
+
                 raise OrchestratorClientError(
                     "Orchestrator execution failed: "
                     f"HTTP {run_response.status_code}"
+                    + (
+                        f": {detail}"
+                        if detail
+                        else ""
+                    )
+                )
+
+            json_method = getattr(
+                run_response,
+                "json",
+                None,
+            )
+
+            if not callable(json_method):
+                raise OrchestratorClientError(
+                    "Orchestrator returned invalid JSON."
                 )
 
             try:
-                events = run_response.json()
-            except ValueError as exc:
+                events = json_method()
+            except Exception as exc:
                 raise OrchestratorClientError(
                     "Orchestrator returned invalid JSON."
                 ) from exc
