@@ -1,0 +1,20 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.streamlit'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/secure-gcp-deployment-fleet/secure-fleet/secure-fleet-streamlit:agent-ui'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'asia-south1-docker.pkg.dev/secure-gcp-deployment-fleet/secure-fleet/secure-fleet-streamlit:agent-ui'
+
+images:
+  - 'asia-south1-docker.pkg.dev/secure-gcp-deployment-fleet/secure-fleet/secure-fleet-streamlit:agent-ui'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -13,6 +13,7 @@ class Operation(str, Enum):
 
     DOCKER_BUILD = "docker.build"
     DOCKER_INSPECT = "docker.inspect"
+    CLOUD_BUILD = "cloud_build.submit"
 
     REGISTRY_VALIDATE = "registry.validate"
     REGISTRY_TAG = "registry.tag"
@@ -34,6 +35,7 @@ POLICY: dict[AgentRole, set[Operation]] = {
         Operation.DOCKERFILE_GENERATE,
         Operation.DOCKER_BUILD,
         Operation.DOCKER_INSPECT,
+        Operation.CLOUD_BUILD,
     },
 
     AgentRole.REGISTRY: {

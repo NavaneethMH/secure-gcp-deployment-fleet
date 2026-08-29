@@ -6,6 +6,9 @@ from gateway.gateway import (
 from gateway.policy import Operation
 
 
+from tools.cloud_build_tools import submit_cloud_build, verify_published_image
+
+
 from tools.docker_tools import (
     generate_dockerfile,
     docker_build,
@@ -46,6 +49,11 @@ register_tool(
     docker_inspect,
 )
 
+register_tool(
+    Operation.CLOUD_BUILD,
+    submit_cloud_build,
+)
+
 
 # ---------------------------------------------------------------------------
 # REGISTRY AGENT
@@ -68,7 +76,7 @@ register_tool(
 
 register_tool(
     Operation.REGISTRY_VERIFY,
-    verify_artifact_digest,
+    verify_published_image,
 )
 
 

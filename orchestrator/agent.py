@@ -65,8 +65,7 @@ Responsible for:
 - Application analysis
 - Runtime and dependency analysis
 - Dockerfile/containerization strategy
-- Docker image building
-- Docker image inspection
+- Remote container image construction through Cloud Build
 
 The Build Agent MUST NOT:
 
@@ -80,10 +79,8 @@ REGISTRY AGENT:
 
 Responsible for:
 
-- Validating local container images
-- Tagging images for Artifact Registry
-- Publishing images to Artifact Registry
-- Verifying published image digests
+- Verifying the image published by the controlled Cloud Build pipeline
+- Returning the immutable Artifact Registry digest
 
 The Registry Agent MUST NOT:
 
@@ -226,11 +223,11 @@ execution.
 
 PHASE 3 — REGISTRY
 
-After a successful image build, delegate Artifact Registry operations to the
-Registry Agent.
+After a successful Cloud Build image construction, delegate Artifact Registry
+verification to the Registry Agent.
 
-Do not claim that an image was published until the Registry Agent reports
-successful publication.
+Do not claim that the artifact is ready until the Registry Agent returns a
+successful immutable digest verification.
 
 Prefer immutable image digests for deployment whenever available.
 

@@ -1,4 +1,5 @@
 from typing import Any
+import gateway.tool_registry  # noqa: F401
 
 from gateway.gateway import gateway_execute
 from gateway.policy import (
@@ -7,10 +8,7 @@ from gateway.policy import (
 )
 
 
-def secure_validate_local_image(
-    image_name: str,
-) -> Any:
-
+def secure_validate_local_image(image_name: str) -> Any:
     return gateway_execute(
         AgentRole.REGISTRY,
         Operation.REGISTRY_VALIDATE,
@@ -26,7 +24,6 @@ def secure_tag_image(
     image_name: str,
     tag: str,
 ) -> Any:
-
     return gateway_execute(
         AgentRole.REGISTRY,
         Operation.REGISTRY_TAG,
@@ -46,7 +43,6 @@ def secure_push_image(
     image_name: str,
     tag: str,
 ) -> Any:
-
     return gateway_execute(
         AgentRole.REGISTRY,
         Operation.REGISTRY_PUSH,
@@ -65,13 +61,12 @@ def secure_verify_digest(
     image_name: str,
     tag: str,
 ) -> Any:
-
     return gateway_execute(
         AgentRole.REGISTRY,
         Operation.REGISTRY_VERIFY,
         project_id=project_id,
         region=region,
-        repository=repository,
+        artifact_repository=repository,
         image_name=image_name,
-        tag=tag,
+        image_tag=tag,
     )

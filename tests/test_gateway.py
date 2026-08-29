@@ -5,6 +5,16 @@ from gateway.policy import (
 )
 
 
+def test_build_agent_can_remote_build():
+
+    decision = authorize(
+        AgentRole.BUILD,
+        Operation.CLOUD_BUILD,
+    )
+
+    assert decision.allowed is True
+
+
 def test_build_agent_can_build():
 
     decision = authorize(

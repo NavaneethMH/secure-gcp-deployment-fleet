@@ -1,4 +1,5 @@
 google-adk[a2a]
+google-cloud-build
 google-cloud-aiplatform
 google-cloud-artifact-registry
 google-cloud-run

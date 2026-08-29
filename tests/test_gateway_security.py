@@ -126,6 +126,7 @@ def test_registered_operations_have_immutable_registry_entries():
         Operation.DOCKERFILE_GENERATE,
         Operation.DOCKER_BUILD,
         Operation.DOCKER_INSPECT,
+        Operation.CLOUD_BUILD,
         Operation.REGISTRY_VALIDATE,
         Operation.REGISTRY_TAG,
         Operation.REGISTRY_PUSH,
