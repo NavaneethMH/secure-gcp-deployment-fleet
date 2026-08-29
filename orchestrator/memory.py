@@ -2,7 +2,6 @@ from typing import Any
 
 from memory.memory_bank import MemoryBank
 
-
 memory_bank = MemoryBank()
 
 

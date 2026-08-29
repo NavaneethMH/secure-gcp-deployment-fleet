@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -10,4 +9,4 @@ class GitHubPushEvent:
     ref: str
     branch: str
     commit_sha: str
-    installation_id: Optional[int] = None
+    installation_id: int | None = None

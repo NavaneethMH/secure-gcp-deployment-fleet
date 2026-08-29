@@ -5,7 +5,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-
 MAX_OUTPUT_LENGTH = 12000
 
 LOCAL_IMAGE_PATTERN = re.compile(

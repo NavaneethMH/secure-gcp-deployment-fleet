@@ -5,7 +5,6 @@ from gateway.hosting_gateway import (
     secure_cloud_run_get,
 )
 
-
 hosting_agent = Agent(
     name="hosting_agent",
     model="gemini-3.5-flash",

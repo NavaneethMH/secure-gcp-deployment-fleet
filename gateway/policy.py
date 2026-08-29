@@ -9,10 +9,6 @@ class AgentRole(str, Enum):
 
 
 class Operation(str, Enum):
-    DOCKERFILE_GENERATE = "dockerfile.generate"
-
-    DOCKER_BUILD = "docker.build"
-    DOCKER_INSPECT = "docker.inspect"
     CLOUD_BUILD = "cloud_build.submit"
 
     REGISTRY_VALIDATE = "registry.validate"
@@ -32,9 +28,6 @@ class PolicyDecision:
 
 POLICY: dict[AgentRole, set[Operation]] = {
     AgentRole.BUILD: {
-        Operation.DOCKERFILE_GENERATE,
-        Operation.DOCKER_BUILD,
-        Operation.DOCKER_INSPECT,
         Operation.CLOUD_BUILD,
     },
 

@@ -3,10 +3,9 @@ import hmac
 import json
 import os
 import time
-from typing import Any, Optional
+from typing import Any
 
 from webhook.models import GitHubPushEvent
-
 
 SUPPORTED_EVENT = "push"
 DEFAULT_BRANCH = "main"
@@ -33,8 +32,8 @@ def _get_webhook_secret() -> str:
 
 def verify_signature(
     payload: bytes,
-    signature: Optional[str],
-    secret: Optional[str] = None,
+    signature: str | None,
+    secret: str | None = None,
 ) -> bool:
     """Verify GitHub's X-Hub-Signature-256 header."""
 
@@ -80,7 +79,7 @@ def _validate_repository(repository: Any) -> tuple[str, str]:
 def parse_push_event(
     payload: dict[str, Any],
     event_id: str,
-    expected_repository: Optional[str] = None,
+    expected_repository: str | None = None,
     expected_branch: str = DEFAULT_BRANCH,
 ) -> GitHubPushEvent:
     """Validate and normalize a GitHub push event."""
@@ -162,12 +161,12 @@ class ReplayProtection:
 
 def process_github_webhook(
     payload_bytes: bytes,
-    signature: Optional[str],
+    signature: str | None,
     event_name: str,
     event_id: str,
-    expected_repository: Optional[str] = None,
+    expected_repository: str | None = None,
     expected_branch: str = DEFAULT_BRANCH,
-    replay_protection: Optional[ReplayProtection] = None,
+    replay_protection: ReplayProtection | None = None,
 ) -> dict[str, Any]:
     """
     Validate a GitHub webhook and return a normalized deployment event.

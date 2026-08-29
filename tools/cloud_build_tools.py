@@ -144,7 +144,7 @@ def submit_cloud_build(
             "Registry publication: completed by Cloud Build."
         )
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return (
             "ERROR: Cloud Build submission failed.\n"
             f"Exception: {type(exc).__name__}\n"
@@ -200,7 +200,7 @@ def verify_published_image(
             f"Expected: {expected_tag}"
         )
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return (
             "ERROR: Artifact Registry verification failed.\n"
             f"Exception: {type(exc).__name__}\n"

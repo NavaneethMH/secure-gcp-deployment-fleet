@@ -1,11 +1,11 @@
+import json
 import os
 import uuid
-import json
+
 import requests
 import streamlit as st
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
-
 
 # ============================================================
 # Configuration
@@ -330,7 +330,7 @@ if st.button(
                         language="text",
                     )
 
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
 
                 st.error(
                     f"Deployment execution failed: {exc}"

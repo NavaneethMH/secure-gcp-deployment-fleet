@@ -1,13 +1,10 @@
 import pytest
 
-import gateway.tool_registry
-
 from gateway.gateway import (
     TOOL_REGISTRY,
     gateway_execute,
     register_tool,
 )
-
 from gateway.policy import (
     AgentRole,
     Operation,
@@ -47,9 +44,13 @@ def test_registry_agent_cannot_build():
 
         gateway_execute(
             AgentRole.REGISTRY,
-            Operation.DOCKER_BUILD,
-            project_path="tests/docker-demo",
-            image_name="unauthorized",
+            Operation.CLOUD_BUILD,
+            repository_url="https://github.com/example/repo.git",
+            commit_sha="abcdef1234567",
+            project_id="test",
+            region="test",
+            artifact_repository="test",
+            image_name="test",
         )
 
 
@@ -88,9 +89,13 @@ def test_hosting_agent_cannot_build():
 
         gateway_execute(
             AgentRole.HOSTING,
-            Operation.DOCKER_BUILD,
-            project_path="tests/docker-demo",
-            image_name="unauthorized",
+            Operation.CLOUD_BUILD,
+            repository_url="https://github.com/example/repo.git",
+            commit_sha="abcdef1234567",
+            project_id="test",
+            region="test",
+            artifact_repository="test",
+            image_name="test",
         )
 
 
@@ -100,9 +105,13 @@ def test_invalid_agent_identity_is_rejected():
 
         gateway_execute(
             "build_agent",
-            Operation.DOCKER_BUILD,
-            project_path="tests/docker-demo",
-            image_name="unauthorized",
+            Operation.CLOUD_BUILD,
+            repository_url="https://github.com/example/repo.git",
+            commit_sha="abcdef1234567",
+            project_id="test",
+            region="test",
+            artifact_repository="test",
+            image_name="test",
         )
 
 
@@ -123,9 +132,6 @@ def test_invalid_operation_identity_is_rejected():
 def test_registered_operations_have_immutable_registry_entries():
 
     expected_operations = {
-        Operation.DOCKERFILE_GENERATE,
-        Operation.DOCKER_BUILD,
-        Operation.DOCKER_INSPECT,
         Operation.CLOUD_BUILD,
         Operation.REGISTRY_VALIDATE,
         Operation.REGISTRY_TAG,

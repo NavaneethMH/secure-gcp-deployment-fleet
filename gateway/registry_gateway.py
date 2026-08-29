@@ -1,6 +1,6 @@
 from typing import Any
-import gateway.tool_registry  # noqa: F401
 
+import gateway.tool_registry  # noqa: F401
 from gateway.gateway import gateway_execute
 from gateway.policy import (
     AgentRole,

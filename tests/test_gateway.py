@@ -19,7 +19,7 @@ def test_build_agent_can_build():
 
     decision = authorize(
         AgentRole.BUILD,
-        Operation.DOCKER_BUILD,
+        Operation.CLOUD_BUILD,
     )
 
     assert decision.allowed is True
@@ -39,7 +39,7 @@ def test_registry_agent_cannot_build():
 
     decision = authorize(
         AgentRole.REGISTRY,
-        Operation.DOCKER_BUILD,
+        Operation.CLOUD_BUILD,
     )
 
     assert decision.allowed is False

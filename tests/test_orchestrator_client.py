@@ -6,7 +6,6 @@ from webhook.orchestrator_client import (
     OrchestratorClientError,
 )
 
-
 VALID_REQUEST = {
     "accepted": True,
     "request_type": "github_deployment",

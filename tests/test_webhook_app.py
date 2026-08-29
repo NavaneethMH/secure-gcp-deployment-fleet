@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 from webhook.app import app
 
-
 SECRET = "test-webhook-secret"
 REPOSITORY = "NavaneethMH/secure-gcp-deployment-fleet"
 COMMIT_SHA = "a" * 40

@@ -3,33 +3,27 @@ from google.adk.agents import Agent
 # ---------------------------------------------------------------------------
 # Security / Tool Registration
 # ---------------------------------------------------------------------------
-
 # Importing this module registers all approved infrastructure tools with
 # the Agent Gateway before any agent attempts to execute them.
 import gateway.tool_registry  # noqa: F401
 
-
 # ---------------------------------------------------------------------------
 # Fleet Agents
 # ---------------------------------------------------------------------------
-
 from agents.build_agent import build_agent
-from agents.registry_agent import registry_agent
 from agents.hosting_agent import hosting_agent
-
+from agents.registry_agent import registry_agent
 
 # ---------------------------------------------------------------------------
 # Memory Bank
 # ---------------------------------------------------------------------------
-
 from orchestrator.memory import (
+    recall_last_failure,
+    recall_last_success,
     recall_project_history,
     recall_service_history,
-    recall_last_success,
-    recall_last_failure,
     remember_deployment,
 )
-
 
 # ---------------------------------------------------------------------------
 # Secure GCP Orchestrator

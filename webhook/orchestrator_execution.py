@@ -1,5 +1,6 @@
 import inspect
-from typing import Any, Awaitable, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 class OrchestratorExecutionError(Exception):

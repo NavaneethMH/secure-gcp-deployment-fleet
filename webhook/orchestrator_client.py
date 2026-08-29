@@ -2,9 +2,9 @@ import os
 from typing import Any
 from urllib.parse import quote, urlparse
 
+import httpx
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
-import httpx
 
 
 class OrchestratorClientError(Exception):
@@ -334,7 +334,7 @@ class OrchestratorClient:
 
         try:
             response_json = json_method()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return ""
 
         if not isinstance(response_json, dict):

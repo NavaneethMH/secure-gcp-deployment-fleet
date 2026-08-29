@@ -17,7 +17,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Result model
 # ---------------------------------------------------------------------------
@@ -350,8 +349,8 @@ def model_armor_status() -> dict[str, Any]:
 
 __all__ = [
     "ArmorResult",
-    "sanitize",
-    "sanitize_user_prompt",
-    "sanitize_model_response",
     "model_armor_status",
+    "sanitize",
+    "sanitize_model_response",
+    "sanitize_user_prompt",
 ]

@@ -9,21 +9,17 @@ from webhook.github_webhook import (
     WebhookSecurityError,
     WebhookValidationError,
 )
-
 from webhook.orchestrator_bridge import (
     create_deployment_request,
 )
-
-from webhook.orchestrator_execution import (
-    OrchestratorExecutionError,
-    execute_deployment_request_async,
-)
-
 from webhook.orchestrator_client import (
     OrchestratorClient,
     OrchestratorClientError,
 )
-
+from webhook.orchestrator_execution import (
+    OrchestratorExecutionError,
+    execute_deployment_request_async,
+)
 
 logger = logging.getLogger(__name__)
 

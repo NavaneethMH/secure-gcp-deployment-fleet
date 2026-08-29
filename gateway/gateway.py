@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from audit.audit_logger import write_audit_event
 from gateway.policy import (
@@ -10,7 +11,6 @@ from gateway.policy import (
     Operation,
     authorize,
 )
-
 
 _TOOL_REGISTRY: dict[
     Operation,

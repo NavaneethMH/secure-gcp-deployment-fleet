@@ -1,7 +1,6 @@
 import json
 
 from audit.audit_logger import (
-    AUDIT_FILE,
     write_audit_event,
 )
 
@@ -30,7 +29,7 @@ def test_audit_event_is_persisted(
         audit_file,
     )
 
-    event = write_audit_event(
+    write_audit_event(
         agent="build_agent",
         operation="docker.build",
         decision="ALLOW",

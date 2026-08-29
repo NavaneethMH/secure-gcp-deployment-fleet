@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from google.cloud import run_v2
 from google.api_core import exceptions
+from google.cloud import run_v2
 
 
 def deploy_cloud_run_service(
@@ -174,7 +174,7 @@ def deploy_cloud_run_service(
                 f"{urls[0] if urls else 'N/A'}"
             )
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return (
             "ERROR: Cloud Run deployment failed.\n"
             f"Exception: {type(exc).__name__}\n"
@@ -235,7 +235,7 @@ def get_cloud_run_service(
             f"{terminal_state}"
         )
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return (
             "ERROR: Cloud Run service verification failed.\n"
             f"Exception: {type(exc).__name__}\n"

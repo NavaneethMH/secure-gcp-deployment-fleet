@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 AUDIT_DIRECTORY = Path("audit")
 AUDIT_FILE = AUDIT_DIRECTORY / "logs.jsonl"
 
@@ -59,14 +58,13 @@ def write_audit_event(
         separators=(",", ":"),
     )
 
-    with _lock:
-        with AUDIT_FILE.open(
-            "a",
-            encoding="utf-8",
-        ) as file:
+    with _lock, AUDIT_FILE.open(
+        "a",
+        encoding="utf-8",
+    ) as file:
 
-            file.write(
-                serialized + "\n"
-            )
+        file.write(
+            serialized + "\n"
+        )
 
     return event

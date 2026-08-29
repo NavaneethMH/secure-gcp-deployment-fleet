@@ -2,7 +2,6 @@ from google.adk.agents import Agent
 
 from gateway.registry_gateway import secure_verify_digest
 
-
 registry_agent = Agent(
     name="registry_agent",
     model="gemini-3.5-flash",

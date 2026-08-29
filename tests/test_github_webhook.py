@@ -12,7 +12,6 @@ from webhook.github_webhook import (
     verify_signature,
 )
 
-
 SECRET = "test-webhook-secret"
 REPOSITORY = "NavaneethMH/secure-gcp-deployment-fleet"
 COMMIT_SHA = "a" * 40

@@ -2,7 +2,6 @@ from google.adk.agents import Agent
 
 from gateway.build_gateway import secure_cloud_build
 
-
 build_agent = Agent(
     name="build_agent",
     model="gemini-3.5-flash",

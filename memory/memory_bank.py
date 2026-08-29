@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 MEMORY_DIRECTORY = Path("memory")
 MEMORY_DATABASE = MEMORY_DIRECTORY / "memory.db"
 
